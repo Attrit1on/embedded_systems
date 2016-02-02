@@ -5,7 +5,7 @@
  *  Author:     Trey Harrison (CWID: 11368768)
  *  Email:      ntharrison@crimson.ua.edu
  *  Created:    01 February, 2016
- *  Modified:   01 February, 2016
+ *  Modified:   02 February, 2016
  *  
  *  
  *  
@@ -20,9 +20,9 @@
  *  received.
  *  
  *  ---LED Sequence---
- *  Initial state: LED1 on, LED off
+ *  Initial state: LED1 on, LED2 off
  *  Sequence Start
- *  LED1 and LED2 toggle after 2 second
+ *  LED1 and LED2 toggle after 2 seconds
  *  LED1 and LED2 toggle again after 1 second
  *  Sequence End
  *  
@@ -32,13 +32,15 @@
  *  the Free Software Foundation, either version 3 of the License, or
  *  (at your option) any later version.
  *
- *  This program is distributed in the hope that it will be useful,
+ *  This program is distributed in thde hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *  
+ *  Source: <https://github.com/Attrit1on/embedded_sytems>
  *  
  */
  
@@ -49,7 +51,7 @@ void setup() {
   Serial.begin(9600);
   Serial.println("-----Out of Phase LED Blink V1.00-----");
   Serial.println("Enter a 'g' to start flashing the LEDs");
-  Serial.println("Enter a 's' to stop flashing the LEDs");
+  Serial.println("Enter a 's' to cease flashing the LEDs");
   Serial.println("--------------------------------------\n");
   pinMode(LED2, OUTPUT);
   pinMode(LED1, OUTPUT);
@@ -57,18 +59,20 @@ void setup() {
   digitalWrite(LED2, 0);
 }
 
-boolean activeLEDs=0;
+boolean activeOutput=0;
 void loop() {
   // Activate the LED sequence into initialization state if appropriate 
   // control byte has been received
-  LEDActivation(checkSerialBuffer());
-  // Run the LED control sequence if the active flag is true
-  if (activeLEDs)
+  outputActivation(checkSerialBuffer());
+  // Run the LED control sequence if the activeOutput flag is true
+  if (activeOutput)
     controlLEDs();
 }
 
+
 /* controlLEDs()
- * Facilitates control of the LED flashing sequence when active
+ * Facilitates control of the LED flashing sequence 
+ * when output is set to active
  * 
  */
 unsigned long oldTime = 0;
@@ -83,22 +87,24 @@ void controlLEDs() {
     }
 }
 
-/* LEDActivation()
+
+/* outputActivation()
  * When the argument is true, activate the LED sequence
- * Starts by activating LED1 and disabling LED2
+ * Starts by enabling LED1 and disabling LED2
  * Records the current "processor time" in ms
  * Activates the control sequence for LED1 and LED2
  * 
  */
-void LEDActivation(boolean activate) {
-  if (!activate) return;
-  else if (activate && !activeLEDs) {
+void outputActivation(boolean activateOutput) {
+  if (!activateOutput) return;
+  else if (activateOutput && !activeOutput) {
     digitalWrite(LED1,1);
     digitalWrite(LED2,0);
     oldTime=millis();
-    activeLEDs=1;
+    activeOutput=1;
   }
 }
+
 
 /* checkSerialBuffer()
  * Reads in one char per program loop, if any are available
@@ -118,8 +124,8 @@ boolean checkSerialBuffer() {
     }
     // If input is 's', disable all LED activity
     else if (input == 's') {
-      if (activeLEDs) {
-        activeLEDs=0;
+      if (activeOutput) {
+        activeOutput=0;
         digitalWrite(LED1,0);
         digitalWrite(LED2,0);
       }
