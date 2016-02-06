@@ -1,11 +1,11 @@
 /*  Lab 1: Out of phase blinking of LEDs
  *  
  *  File:       out_of_phase_led_blink.ino
- *  Version:    1.00
+ *  Version:    1.01
  *  Author:     Trey Harrison (CWID: 11368768)
  *  Email:      ntharrison@crimson.ua.edu
  *  Created:    01 February, 2016
- *  Modified:   02 February, 2016
+ *  Modified:   05 February, 2016
  *  
  *  
  *  
@@ -26,7 +26,7 @@
  *  LED1 and LED2 toggle again after 1 second
  *  Sequence End
  *  
- *  Copyright (C) 2015, Trey Harrison
+ *  Copyright (C) 2016, Trey Harrison
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, either version 3 of the License, or
