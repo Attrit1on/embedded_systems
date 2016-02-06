@@ -172,8 +172,7 @@ void ledSequenceInitialization() {
  * case, the pin field corresponds to the appropriate pins needed to 
  * correctly utilize PORTC of the Arduino Mega platform.
  * 
- * FYI: I did create this entire function with comments from Scratch, 
- * Trey.
+ * ---THIS ONLY WORKS FOR COMMON CATHODE DISPLAYS---
  * 
  *   PORTC[0:6] => Digital Pins 37:31
  *   ---------------------------
