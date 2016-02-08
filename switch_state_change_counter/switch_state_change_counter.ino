@@ -1,11 +1,11 @@
 /*  Lab 2: Introduction to Digital IO
  *  
  *  File:       switch_state_change_counter.ino
- *  Version:    1.00
+ *  Version:    1.01
  *  Author:     Trey Harrison (CWID: 11368768)
  *  Email:      ntharrison@crimson.ua.edu
  *  Created:    04 February, 2016
- *  Modified:   05 February, 2016
+ *  Modified:   08 February, 2016
  *  
  *  This program is created for an embedded systems course.  
  *  The program counts the state changes of a mechanical toggle switch wired 
@@ -45,7 +45,6 @@
 
 // State Variables
 uint8_t switchCount = 0;
-boolean activeState = 0;
 volatile boolean switchChangeFlag = 0;
 
 void setup() {
@@ -69,7 +68,7 @@ void setup() {
 void loop() {
   if (switchChangeFlag) {
     switchChangeInterruptHandler();
-  } else if (activeState) {
+  } else if (PINB&0xC0) {
     ledControl();
   }
 }
@@ -105,11 +104,9 @@ boolean switchChangeInterruptHandler() {
       // Print new count to serial monitor
       printCount(switchCount);
 
-      if (activeState) {
-        activeState = 0;
+      if (PINB&0xC0) {
         PORTB &= 0x3F;
       } else {
-        activeState = 1;
         ledSequenceInitialization();
       }
       // Reset debounce timer
@@ -162,9 +159,9 @@ void ledSequenceInitialization() {
 
 /* sevenSegmentControl(uint8_t displayVal)
  * Returns the byte needed in a register to represent displayVal on 
- * a seven segment display wired with all segments to a single port 
- * as described in the table below.  This code was executed with the
- * display wired to PORTC of the Arduino Mega platform.
+ * a seven segment display in hex wired with all segments to a single 
+ * port as described in the table below.  This code was executed with 
+ * the display wired to PORTC of the Arduino Mega platform.
  * 
  * The segment field corresponds to the segment of the display to be
  * controlled(segment map to right of table).  The port_bit refers 
