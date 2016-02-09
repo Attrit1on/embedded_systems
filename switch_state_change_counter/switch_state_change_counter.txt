@@ -1,11 +1,11 @@
 /*  Lab 2: Introduction to Digital IO
  *  
  *  File:       switch_state_change_counter.ino
- *  Version:    1.01
+ *  Version:    1.02
  *  Author:     Trey Harrison (CWID: 11368768)
  *  Email:      ntharrison@crimson.ua.edu
  *  Created:    04 February, 2016
- *  Modified:   08 February, 2016
+ *  Modified:   09 February, 2016
  *  
  *  This program is created for an embedded systems course.  
  *  The program counts the state changes of a mechanical toggle switch wired 
@@ -103,8 +103,9 @@ boolean switchChangeInterruptHandler() {
       PORTC = sevenSegmentControl(switchCount);
       // Print new count to serial monitor
       printCount(switchCount);
-
+      // Check if LEDs are active
       if (PINB&0xC0) {
+        // Turn off LEDs
         PORTB &= 0x3F;
       } else {
         ledSequenceInitialization();
@@ -128,15 +129,11 @@ boolean ledControl() {
   if (millis() - oldTime > 1000) {
     // Check state of LED1
     if (PINB&0x80) {
-      // LED1 on
-      PORTB &= 0x7F;
-      // LED2 off
-      PORTB |= 0x40;
+      // LED1 off, LED2 on
+      PORTB = (PINB&0x7F)|0x40;
     } else {
-      // LED1 off
-      PORTB |= 0x80;
-      // LED2 on
-      PORTB &= 0xBF;
+      // LED1 on, LED2 off
+      PORTB = (PINB|0x80)&0xBF;
     }
     // Reset LED process timer
     oldTime = millis();
