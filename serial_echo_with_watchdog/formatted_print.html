@@ -1,0 +1,240 @@
+<pre>
+<font color="#95a5a6">/* &nbsp;Lab 3: Introduction to Watchdog Timers</font>
+<font color="#95a5a6"> * &nbsp;</font>
+<font color="#95a5a6"> * &nbsp;File: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;serial_echo_with_watchdog.ino</font>
+<font color="#95a5a6"> * &nbsp;Version: &nbsp;&nbsp;&nbsp;1.01</font>
+<font color="#95a5a6"> * &nbsp;Author: &nbsp;&nbsp;&nbsp;&nbsp;Trey Harrison (CWID: 11368768)</font>
+<font color="#95a5a6"> * &nbsp;Email: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ntharrison@crimson.ua.edu</font>
+<font color="#95a5a6"> * &nbsp;Created: &nbsp;&nbsp;&nbsp;16 February, 2016</font>
+<font color="#95a5a6"> * &nbsp;Modified: &nbsp;&nbsp;16 February, 2016</font>
+<font color="#95a5a6"> * &nbsp;</font>
+<font color="#95a5a6"> * &nbsp;This is a useful function for echoing a single hex digit received via serial</font>
+<font color="#95a5a6"> * &nbsp;to both the serial port and a 7-segment display, i.e. the input must be an</font>
+<font color="#95a5a6"> * &nbsp;integer between 0 and 15 terminated by a line feed. &nbsp;The program transmits &nbsp;</font>
+<font color="#95a5a6"> * &nbsp;an error statement to the serial port whenever an invalid input type is </font>
+<font color="#95a5a6"> * &nbsp;received or there is no line feed. &nbsp;Additionally, the program performs a reset</font>
+<font color="#95a5a6"> * &nbsp;after 4 seconds of inactivity or 3 consecutive invalid user inputs. &nbsp;Attempting </font>
+<font color="#95a5a6"> * &nbsp;to transmit any data via serial during a reset will cause the processor to lock</font>
+<font color="#95a5a6"> * &nbsp;up until the watchdog bites 4 seconds later.</font>
+<font color="#95a5a6"> * &nbsp;</font>
+<font color="#95a5a6"> * &nbsp;Copyright (C) 2016, Trey Harrison</font>
+<font color="#95a5a6"> * &nbsp;This program is free software: you can redistribute it and/or modify</font>
+<font color="#95a5a6"> * &nbsp;it under the terms of the GNU General Public License as published by</font>
+<font color="#95a5a6"> * &nbsp;the Free Software Foundation, either version 3 of the License, or</font>
+<font color="#95a5a6"> * &nbsp;(at your option) any later version.</font>
+<font color="#95a5a6"> *</font>
+<font color="#95a5a6"> * &nbsp;This program is distributed in thde hope that it will be useful,</font>
+<font color="#95a5a6"> * &nbsp;but WITHOUT ANY WARRANTY; without even the implied warranty of</font>
+<font color="#95a5a6"> * &nbsp;MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. &nbsp;See the</font>
+<font color="#95a5a6"> * &nbsp;GNU General Public License for more details.</font>
+<font color="#95a5a6"> *</font>
+<font color="#95a5a6"> * &nbsp;You should have received a copy of the GNU General Public License</font>
+<font color="#95a5a6"> * &nbsp;along with this program. &nbsp;If not, see &lt;</font><u><font color="#95a5a6">http://www.gnu.org/licenses/</font></u><font color="#95a5a6">&gt;.</font>
+<font color="#95a5a6"> * &nbsp;</font>
+<font color="#95a5a6"> * &nbsp;Source: &lt;</font><u><font color="#95a5a6">https://github.com/Attrit1on/embedded_systems</font></u><font color="#95a5a6">&gt;</font>
+<font color="#95a5a6"> * &nbsp;</font>
+<font color="#95a5a6"> */</font>
+
+<font color="#434f54">// Library for utilizing the AVR's integrated watchdog</font>
+<font color="#5e6d03">#include</font> <font color="#434f54">&lt;</font><font color="#000000">avr</font><font color="#434f54">/</font><font color="#000000">wdt</font><font color="#434f54">.</font><font color="#000000">h</font><font color="#434f54">&gt;</font> 
+
+<font color="#00979c">void</font> <font color="#5e6d03">setup</font><font color="#000000">(</font><font color="#000000">)</font> <font color="#000000">{</font>
+ &nbsp;<font color="#434f54">// Disable the watchdog</font>
+ &nbsp;<font color="#000000">disableWatchdog</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">;</font>
+ &nbsp;<font color="#434f54">// Configure all bits of PORTC as outputs for the 7-segment display</font>
+ &nbsp;<font color="#000000">DDRC</font> <font color="#434f54">=</font> <font color="#000000">0xFF</font><font color="#000000">;</font>
+ &nbsp;<font color="#434f54">// Initialize the sevenSegmentDisplay to display a reset</font>
+ &nbsp;<font color="#000000">PORTC</font> <font color="#434f54">=</font> <font color="#000000">sevenSegmentControl</font><font color="#000000">(</font><font color="#000000">20</font><font color="#000000">)</font><font color="#000000">;</font>
+ &nbsp;<font color="#434f54">// Serial start and initial statements</font>
+ &nbsp;<b><font color="#d35400">Serial</font></b><font color="#434f54">.</font><font color="#d35400">begin</font><font color="#000000">(</font><font color="#000000">115200</font><font color="#000000">)</font><font color="#000000">;</font>
+ &nbsp;<b><font color="#d35400">Serial</font></b><font color="#434f54">.</font><font color="#d35400">println</font><font color="#000000">(</font><font color="#00979c">"\n\n\n\n\n\n\n\n\n\n\n\n\n\n---Serial Echo with Watchdog V1.00---"</font><font color="#000000">)</font><font color="#000000">;</font>
+ &nbsp;<b><font color="#d35400">Serial</font></b><font color="#434f54">.</font><font color="#d35400">println</font><font color="#000000">(</font><font color="#00979c">"***Program resets after 4 seconds of inactivity***\n"</font><font color="#000000">)</font><font color="#000000">;</font>
+ &nbsp;<b><font color="#d35400">Serial</font></b><font color="#434f54">.</font><font color="#d35400">println</font><font color="#000000">(</font><font color="#00979c">"Please enter an integer between 0 and 15 terminated by a line feed:"</font><font color="#000000">)</font><font color="#000000">;</font>
+ &nbsp;<font color="#434f54">// Start the watchdog interrupt with a 4s timeout</font>
+ &nbsp;<font color="#000000">enableWatchdog</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">;</font>
+<font color="#000000">}</font>
+
+<font color="#434f54">// Program State variables</font>
+<font color="#00979c">boolean</font> <font color="#000000">inputComplete</font> <font color="#434f54">=</font> <font color="#000000">0</font><font color="#434f54">,</font> <font color="#000000">inputError</font> <font color="#434f54">=</font> <font color="#000000">0</font><font color="#434f54">,</font> <font color="#000000">waitingOnInputCompletion</font> <font color="#434f54">=</font> <font color="#000000">0</font><font color="#000000">;</font>
+<font color="#00979c">uint8_t</font> <font color="#000000">input</font> <font color="#434f54">=</font> <font color="#000000">0</font><font color="#000000">;</font>
+<font color="#00979c">unsigned</font> <font color="#00979c">long</font> <font color="#000000">inputStartTime</font><font color="#000000">;</font>
+
+<font color="#00979c">void</font> <font color="#5e6d03">loop</font><font color="#000000">(</font><font color="#000000">)</font> <font color="#000000">{</font>
+ &nbsp;<font color="#434f54">// Check if a valid input was received</font>
+ &nbsp;<font color="#5e6d03">if</font> <font color="#000000">(</font><font color="#000000">inputComplete</font><font color="#434f54">&</font><font color="#434f54">!</font><font color="#000000">inputError</font><font color="#000000">)</font> <font color="#000000">{</font>
+ &nbsp;&nbsp;&nbsp;<font color="#000000">inputComplete</font> <font color="#434f54">=</font> <font color="#000000">0</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;<font color="#000000">echoInput</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;<font color="#000000">input</font> <font color="#434f54">=</font> <font color="#000000">0</font><font color="#000000">;</font>
+ &nbsp;<font color="#000000">}</font>
+ &nbsp;<font color="#434f54">// Else determine if there was an error</font>
+ &nbsp;<font color="#5e6d03">else</font> <font color="#5e6d03">if</font> <font color="#000000">(</font><font color="#000000">(</font><font color="#000000">(</font><font color="#d35400">millis</font><font color="#000000">(</font><font color="#000000">)</font><font color="#434f54">-</font><font color="#000000">inputStartTime</font> <font color="#434f54">&gt;</font> <font color="#000000">100</font><font color="#000000">)</font> <font color="#434f54">&</font> <font color="#000000">waitingOnInputCompletion</font><font color="#000000">)</font> <font color="#434f54">|</font> <font color="#000000">inputComplete</font><font color="#000000">)</font> <font color="#000000">{</font>
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="#000000">inputErrorHandler</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">;</font>
+ &nbsp;<font color="#000000">}</font>
+ &nbsp;<font color="#5e6d03">else</font> <font color="#000000">{</font>
+ &nbsp;&nbsp;&nbsp;<font color="#434f54">// Just keep on looping</font>
+ &nbsp;<font color="#000000">}</font>
+<font color="#000000">}</font>
+
+<font color="#95a5a6">/* &nbsp;serialEvent()</font>
+<font color="#95a5a6"> * &nbsp;Arduino function that's called in between each loop() if there</font>
+<font color="#95a5a6"> * &nbsp;is data available in the serial buffer. &nbsp;Programmed to accept</font>
+<font color="#95a5a6"> * &nbsp;only integers or linefeed without triggering an inputError.</font>
+<font color="#95a5a6"> */</font>
+<font color="#00979c">void</font> <font color="#000000">serialEvent</font><font color="#000000">(</font><font color="#000000">)</font> <font color="#000000">{</font>
+ &nbsp;<font color="#5e6d03">if</font> <font color="#000000">(</font><b><font color="#d35400">Serial</font></b><font color="#434f54">.</font><font color="#d35400">available</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">)</font> <font color="#000000">{</font>
+ &nbsp;&nbsp;&nbsp;
+ &nbsp;&nbsp;&nbsp;<font color="#434f54">// Reset the watchdog timer</font>
+ &nbsp;&nbsp;&nbsp;<font color="#000000">wdt_reset</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;
+ &nbsp;&nbsp;&nbsp;<font color="#434f54">// Start input start time</font>
+ &nbsp;&nbsp;&nbsp;<font color="#000000">inputStartTime</font> <font color="#434f54">=</font> <font color="#d35400">millis</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;<font color="#5e6d03">if</font> <font color="#000000">(</font><font color="#434f54">!</font><font color="#000000">input</font><font color="#000000">)</font> <font color="#000000">{</font>
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="#000000">waitingOnInputCompletion</font> <font color="#434f54">=</font> <font color="#000000">1</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;<font color="#000000">}</font>
+ &nbsp;&nbsp;&nbsp;
+ &nbsp;&nbsp;&nbsp;<font color="#434f54">// Read first byte off the serial buffer</font>
+ &nbsp;&nbsp;&nbsp;<font color="#00979c">int</font> <font color="#000000">temp</font> <font color="#434f54">=</font> <b><font color="#d35400">Serial</font></b><font color="#434f54">.</font><font color="#d35400">read</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;
+ &nbsp;&nbsp;&nbsp;<font color="#434f54">// Check if first byte in buffer was an integer</font>
+ &nbsp;&nbsp;&nbsp;<font color="#5e6d03">if</font> <font color="#000000">(</font><font color="#000000">temp</font> <font color="#434f54">&gt;</font> <font color="#000000">47</font> <font color="#434f54">&&</font> <font color="#000000">temp</font> <font color="#434f54">&lt;</font> <font color="#000000">58</font><font color="#000000">)</font> <font color="#000000">{</font>
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="#000000">input</font> <font color="#434f54">*=</font> <font color="#000000">10</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="#000000">input</font> <font color="#434f54">+=</font> <font color="#000000">temp</font><font color="#434f54">-</font><font color="#000000">48</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;<font color="#000000">}</font>
+ &nbsp;&nbsp;&nbsp;
+ &nbsp;&nbsp;&nbsp;<font color="#434f54">// Check if it was a line feed, this signifies the end of an input</font>
+ &nbsp;&nbsp;&nbsp;<font color="#5e6d03">else</font> <font color="#5e6d03">if</font> <font color="#000000">(</font><font color="#000000">temp</font> <font color="#434f54">==</font> <font color="#000000">10</font><font color="#000000">)</font> <font color="#000000">{</font>
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="#434f54">// Check if the completed input is out of range</font>
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="#5e6d03">if</font> <font color="#000000">(</font><font color="#000000">input</font> <font color="#434f54">&gt;</font> <font color="#000000">15</font><font color="#000000">)</font> <font color="#000000">{</font>
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="#000000">inputComplete</font> <font color="#434f54">=</font> <font color="#000000">inputError</font> <font color="#434f54">=</font> <font color="#434f54">!</font><font color="#000000">(</font><font color="#000000">waitingOnInputCompletion</font> <font color="#434f54">=</font> <font color="#000000">0</font><font color="#000000">)</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="#000000">}</font> 
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="#5e6d03">else</font> <font color="#000000">{</font>
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="#000000">inputComplete</font><font color="#434f54">=</font> <font color="#434f54">!</font><font color="#000000">(</font><font color="#000000">waitingOnInputCompletion</font> <font color="#434f54">=</font> <font color="#000000">0</font><font color="#000000">)</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="#000000">}</font>
+ &nbsp;&nbsp;&nbsp;<font color="#000000">}</font>
+ &nbsp;&nbsp;&nbsp;
+ &nbsp;&nbsp;&nbsp;<font color="#434f54">// Invalid input received</font>
+ &nbsp;&nbsp;&nbsp;<font color="#5e6d03">else</font> <font color="#000000">{</font>
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="#000000">inputError</font> <font color="#434f54">=</font> <font color="#000000">1</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;<font color="#000000">}</font>
+ &nbsp;<font color="#000000">}</font>
+<font color="#000000">}</font>
+
+<font color="#95a5a6">/* &nbsp;inputErrorHandler()</font>
+<font color="#95a5a6"> * &nbsp;Signals the user that there was an error in their input and clears the current</font>
+<font color="#95a5a6"> * &nbsp;data from input along with the error flag(s). &nbsp;On the third consecutive error,</font>
+<font color="#95a5a6"> * &nbsp;causes the processor to trigger a reset.</font>
+<font color="#95a5a6"> * &nbsp;</font>
+<font color="#95a5a6"> */</font>
+<font color="#00979c">uint8_t</font> <font color="#000000">inputErrorCount</font> <font color="#434f54">=</font> <font color="#000000">0</font><font color="#000000">;</font>
+<font color="#00979c">void</font> <font color="#000000">inputErrorHandler</font><font color="#000000">(</font><font color="#000000">)</font> <font color="#000000">{</font>
+ &nbsp;<font color="#000000">input</font> <font color="#434f54">=</font> <font color="#000000">inputComplete</font> <font color="#434f54">=</font> <font color="#000000">0</font><font color="#000000">;</font>
+ &nbsp;<font color="#000000">PORTC</font> <font color="#434f54">=</font> <font color="#000000">sevenSegmentControl</font><font color="#000000">(</font><font color="#000000">30</font><font color="#000000">)</font><font color="#000000">;</font>
+ &nbsp;<font color="#5e6d03">if</font> <font color="#000000">(</font><font color="#000000">inputErrorCount</font><font color="#434f54">++</font> <font color="#434f54">&lt;</font> <font color="#000000">2</font><font color="#000000">)</font> <font color="#000000">{</font>
+ &nbsp;&nbsp;&nbsp;<font color="#5e6d03">if</font> <font color="#000000">(</font><font color="#000000">waitingOnInputCompletion</font><font color="#000000">)</font> <font color="#000000">{</font>
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<b><font color="#d35400">Serial</font></b><font color="#434f54">.</font><font color="#d35400">println</font><font color="#000000">(</font><font color="#00979c">"\nERROR: No Line Feed! You have "</font> <font color="#434f54">+</font> <font color="#000000">(</font><font color="#00979c">String</font><font color="#000000">)</font><font color="#000000">(</font><font color="#000000">3</font><font color="#434f54">-</font><font color="#000000">inputErrorCount</font><font color="#000000">)</font> <font color="#434f54">+</font>
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="#00979c">" chance(s) remaining to enter a valid input."</font><font color="#000000">)</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="#000000">waitingOnInputCompletion</font> <font color="#434f54">=</font> <font color="#000000">0</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;<font color="#000000">}</font> 
+ &nbsp;&nbsp;&nbsp;<font color="#5e6d03">else</font> <font color="#000000">{</font>
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<b><font color="#d35400">Serial</font></b><font color="#434f54">.</font><font color="#d35400">println</font><font color="#000000">(</font><font color="#00979c">"ERROR: Invalid input type! You have "</font> <font color="#434f54">+</font> <font color="#000000">(</font><font color="#00979c">String</font><font color="#000000">)</font><font color="#000000">(</font><font color="#000000">3</font><font color="#434f54">-</font><font color="#000000">inputErrorCount</font><font color="#000000">)</font> <font color="#434f54">+</font>
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="#00979c">" chance(s) remaining to enter a valid input."</font><font color="#000000">)</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="#000000">inputError</font> <font color="#434f54">=</font> <font color="#000000">0</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;<font color="#000000">}</font>
+ &nbsp;&nbsp;&nbsp;<b><font color="#d35400">Serial</font></b><font color="#434f54">.</font><font color="#d35400">println</font><font color="#000000">(</font><font color="#00979c">"Please enter an integer between 0 and 15 terminated by a line feed:"</font><font color="#000000">)</font><font color="#000000">;</font>
+
+ &nbsp;<font color="#000000">}</font> <font color="#5e6d03">else</font> <font color="#000000">{</font>
+ &nbsp;&nbsp;&nbsp;<b><font color="#d35400">Serial</font></b><font color="#434f54">.</font><font color="#d35400">println</font><font color="#000000">(</font><font color="#00979c">"Too many invalid inputs; resetting application..."</font><font color="#000000">)</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;<font color="#d35400">delay</font><font color="#000000">(</font><font color="#000000">100</font><font color="#000000">)</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;<font color="#5e6d03">asm</font> <font color="#5e6d03">volatile</font> <font color="#000000">(</font><font color="#00979c">"jmp 0"</font><font color="#000000">)</font><font color="#000000">;</font>
+ &nbsp;<font color="#000000">}</font>
+<font color="#000000">}</font>
+
+<font color="#95a5a6">/* &nbsp;echoInput() </font>
+<font color="#95a5a6"> * &nbsp;Echos valid inputs to both serial and the 7-segment display</font>
+<font color="#95a5a6"> * &nbsp;</font>
+<font color="#95a5a6"> */</font>
+<font color="#00979c">void</font> <font color="#000000">echoInput</font><font color="#000000">(</font><font color="#000000">)</font> <font color="#000000">{</font>
+ &nbsp;<font color="#000000">inputErrorCount</font> <font color="#434f54">=</font> <font color="#000000">0</font><font color="#000000">;</font>
+ &nbsp;<b><font color="#d35400">Serial</font></b><font color="#434f54">.</font><font color="#d35400">print</font><font color="#000000">(</font><font color="#00979c">"Input: 0x"</font><font color="#000000">)</font><font color="#000000">;</font>
+ &nbsp;<b><font color="#d35400">Serial</font></b><font color="#434f54">.</font><font color="#d35400">println</font><font color="#000000">(</font><font color="#000000">input</font><font color="#434f54">,</font><font color="#00979c">HEX</font><font color="#000000">)</font><font color="#000000">;</font>
+ &nbsp;<font color="#000000">PORTC</font> <font color="#434f54">=</font> <font color="#000000">sevenSegmentControl</font><font color="#000000">(</font><font color="#000000">input</font><font color="#000000">)</font><font color="#000000">;</font>
+<font color="#000000">}</font>
+
+<font color="#95a5a6">/* sevenSegmentControl(uint8_t displayVal)</font>
+<font color="#95a5a6"> * Returns the byte needed in a register to represent displayVal on </font>
+<font color="#95a5a6"> * a seven segment display in hex wired with all segments to a single </font>
+<font color="#95a5a6"> * port as described in the table below. &nbsp;This code was executed with </font>
+<font color="#95a5a6"> * the display wired to PORTC of the Arduino Mega platform.</font>
+<font color="#95a5a6"> * </font>
+<font color="#95a5a6"> * The segment field corresponds to the segment of the display to be</font>
+<font color="#95a5a6"> * controlled(segment map to right of table). &nbsp;The port_bit refers </font>
+<font color="#95a5a6"> * to the bits in a single port of the arduino to be used. &nbsp;In this &nbsp;</font>
+<font color="#95a5a6"> * case, the pin field corresponds to the appropriate pins needed to </font>
+<font color="#95a5a6"> * correctly utilize PORTC of the Arduino Mega platform.</font>
+<font color="#95a5a6"> * </font>
+<font color="#95a5a6"> * ---THIS ONLY WORKS FOR COMMON CATHODE DISPLAYS---</font>
+<font color="#95a5a6"> * </font>
+<font color="#95a5a6"> * &nbsp;&nbsp;PORTC[0:6] =&gt; Digital Pins 37:31</font>
+<font color="#95a5a6"> * &nbsp;&nbsp;---------------------------</font>
+<font color="#95a5a6"> * &nbsp;&nbsp;|segment &nbsp;&nbsp;&nbsp;port_bit &nbsp;&nbsp;pin|</font>
+<font color="#95a5a6"> * &nbsp;&nbsp;| &nbsp;&nbsp;o &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;7 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;30 | &nbsp;&nbsp;&nbsp;&nbsp;segments</font>
+<font color="#95a5a6"> * &nbsp;&nbsp;| &nbsp;&nbsp;G &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;6 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;31 | &nbsp;&nbsp;&nbsp;&nbsp;|--A--|</font>
+<font color="#95a5a6"> * &nbsp;&nbsp;| &nbsp;&nbsp;F &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;5 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;32 | &nbsp;&nbsp;&nbsp;&nbsp;F &nbsp;&nbsp;&nbsp;&nbsp;B</font>
+<font color="#95a5a6"> * &nbsp;&nbsp;| &nbsp;&nbsp;E &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;4 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;33 | &nbsp;&nbsp;&nbsp;&nbsp;|--G--|</font>
+<font color="#95a5a6"> * &nbsp;&nbsp;| &nbsp;&nbsp;D &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;3 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;34 | &nbsp;&nbsp;&nbsp;&nbsp;E &nbsp;&nbsp;&nbsp;&nbsp;C</font>
+<font color="#95a5a6"> * &nbsp;&nbsp;| &nbsp;&nbsp;C &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;2 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;35 | &nbsp;&nbsp;&nbsp;&nbsp;|--D--| o</font>
+<font color="#95a5a6"> * &nbsp;&nbsp;| &nbsp;&nbsp;B &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;1 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;36 |</font>
+<font color="#95a5a6"> * &nbsp;&nbsp;| &nbsp;&nbsp;A &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;0 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;37 |</font>
+<font color="#95a5a6"> * &nbsp;&nbsp;---------------------------</font>
+<font color="#95a5a6"> *</font>
+<font color="#95a5a6"> */</font>
+<font color="#00979c">uint8_t</font> <font color="#000000">sevenSegmentControl</font><font color="#000000">(</font><font color="#00979c">uint8_t</font> <font color="#000000">displayVal</font><font color="#000000">)</font> <font color="#000000">{</font>
+ &nbsp;<font color="#5e6d03">switch</font> <font color="#000000">(</font><font color="#000000">displayVal</font><font color="#000000">)</font> <font color="#000000">{</font>
+ &nbsp;&nbsp;&nbsp;<font color="#5e6d03">case</font> <font color="#000000">0</font><font color="#434f54">:</font> &nbsp;<font color="#5e6d03">return</font> <font color="#000000">0x3F</font><font color="#000000">;</font> <font color="#5e6d03">break</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;<font color="#5e6d03">case</font> <font color="#000000">1</font><font color="#434f54">:</font> &nbsp;<font color="#5e6d03">return</font> <font color="#000000">0x06</font><font color="#000000">;</font> <font color="#5e6d03">break</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;<font color="#5e6d03">case</font> <font color="#000000">2</font><font color="#434f54">:</font> &nbsp;<font color="#5e6d03">return</font> <font color="#000000">0x5B</font><font color="#000000">;</font> <font color="#5e6d03">break</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;<font color="#5e6d03">case</font> <font color="#000000">3</font><font color="#434f54">:</font> &nbsp;<font color="#5e6d03">return</font> <font color="#000000">0x4F</font><font color="#000000">;</font> <font color="#5e6d03">break</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;<font color="#5e6d03">case</font> <font color="#000000">4</font><font color="#434f54">:</font> &nbsp;<font color="#5e6d03">return</font> <font color="#000000">0x66</font><font color="#000000">;</font> <font color="#5e6d03">break</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;<font color="#5e6d03">case</font> <font color="#000000">5</font><font color="#434f54">:</font> &nbsp;<font color="#5e6d03">return</font> <font color="#000000">0x6D</font><font color="#000000">;</font> <font color="#5e6d03">break</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;<font color="#5e6d03">case</font> <font color="#000000">6</font><font color="#434f54">:</font> &nbsp;<font color="#5e6d03">return</font> <font color="#000000">0x7D</font><font color="#000000">;</font> <font color="#5e6d03">break</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;<font color="#5e6d03">case</font> <font color="#000000">7</font><font color="#434f54">:</font> &nbsp;<font color="#5e6d03">return</font> <font color="#000000">0x07</font><font color="#000000">;</font> <font color="#5e6d03">break</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;<font color="#5e6d03">case</font> <font color="#000000">8</font><font color="#434f54">:</font> &nbsp;<font color="#5e6d03">return</font> <font color="#000000">0x7F</font><font color="#000000">;</font> <font color="#5e6d03">break</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;<font color="#5e6d03">case</font> <font color="#000000">9</font><font color="#434f54">:</font> &nbsp;<font color="#5e6d03">return</font> <font color="#000000">0x6F</font><font color="#000000">;</font> <font color="#5e6d03">break</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;<font color="#5e6d03">case</font> <font color="#000000">10</font><font color="#434f54">:</font> <font color="#5e6d03">return</font> <font color="#000000">0x77</font><font color="#000000">;</font> <font color="#5e6d03">break</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;<font color="#5e6d03">case</font> <font color="#000000">11</font><font color="#434f54">:</font> <font color="#5e6d03">return</font> <font color="#000000">0x7C</font><font color="#000000">;</font> <font color="#5e6d03">break</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;<font color="#5e6d03">case</font> <font color="#000000">12</font><font color="#434f54">:</font> <font color="#5e6d03">return</font> <font color="#000000">0x39</font><font color="#000000">;</font> <font color="#5e6d03">break</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;<font color="#5e6d03">case</font> <font color="#000000">13</font><font color="#434f54">:</font> <font color="#5e6d03">return</font> <font color="#000000">0x5E</font><font color="#000000">;</font> <font color="#5e6d03">break</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;<font color="#5e6d03">case</font> <font color="#000000">14</font><font color="#434f54">:</font> <font color="#5e6d03">return</font> <font color="#000000">0x79</font><font color="#000000">;</font> <font color="#5e6d03">break</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;<font color="#5e6d03">case</font> <font color="#000000">15</font><font color="#434f54">:</font> <font color="#5e6d03">return</font> <font color="#000000">0x71</font><font color="#000000">;</font> <font color="#5e6d03">break</font><font color="#000000">;</font>
+ &nbsp;&nbsp;&nbsp;<font color="#5e6d03">case</font> <font color="#000000">20</font><font color="#434f54">:</font> <font color="#5e6d03">return</font> <font color="#000000">0x80</font><font color="#000000">;</font> <font color="#5e6d03">break</font><font color="#000000">;</font> &nbsp;&nbsp;&nbsp;<font color="#434f54">// Display reset</font>
+ &nbsp;&nbsp;&nbsp;<font color="#5e6d03">case</font> <font color="#000000">30</font><font color="#434f54">:</font> <font color="#5e6d03">return</font> <font color="#000000">0x49</font><font color="#000000">;</font> <font color="#5e6d03">break</font><font color="#000000">;</font> &nbsp;&nbsp;&nbsp;<font color="#434f54">// Display error</font>
+ &nbsp;&nbsp;&nbsp;<font color="#5e6d03">default</font><font color="#434f54">:</font> <font color="#5e6d03">return</font> <font color="#000000">0x00</font><font color="#000000">;</font> <font color="#5e6d03">break</font><font color="#000000">;</font> &nbsp;&nbsp;&nbsp;<font color="#434f54">// Turn off</font>
+ &nbsp;<font color="#000000">}</font>
+<font color="#000000">}</font>
+
+<font color="#95a5a6">/* &nbsp;disableWatchdog() </font>
+<font color="#95a5a6"> * &nbsp;Disables the ATmega2560 watchdog and clears relevant flags</font>
+<font color="#95a5a6"> * &nbsp;</font>
+<font color="#95a5a6"> */</font>
+<font color="#00979c">void</font> <font color="#000000">disableWatchdog</font><font color="#000000">(</font><font color="#000000">)</font> <font color="#000000">{</font>
+ &nbsp;<font color="#000000">cli</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">;</font> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="#434f54">// Disable interrupts</font>
+ &nbsp;<font color="#000000">MCUSR</font> &nbsp;<font color="#434f54">&=</font> <font color="#000000">0xF7</font><font color="#000000">;</font> <font color="#434f54">// Clear the watchdog reset flag</font>
+ &nbsp;<font color="#000000">WDTCSR</font> <font color="#434f54">|=</font> <font color="#000000">0x18</font><font color="#000000">;</font> <font color="#434f54">// Enable changes to WDTCSR</font>
+ &nbsp;<font color="#000000">WDTCSR</font> &nbsp;<font color="#434f54">=</font> <font color="#000000">0x00</font><font color="#000000">;</font> <font color="#434f54">// Clear the watchdog timer control register</font>
+ &nbsp;<font color="#000000">sei</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">;</font> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="#434f54">// Enable interrupts</font>
+<font color="#000000">}</font>
+
+<font color="#95a5a6">/* &nbsp;enableWatchdog()</font>
+<font color="#95a5a6"> * &nbsp;Enables the ATmega2560 watchdog in system reset mode with a 4 second timeout</font>
+<font color="#95a5a6"> * &nbsp;</font>
+<font color="#95a5a6"> */</font>
+<font color="#00979c">void</font> <font color="#000000">enableWatchdog</font><font color="#000000">(</font><font color="#000000">)</font> <font color="#000000">{</font>
+ &nbsp;<font color="#000000">cli</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">;</font> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="#434f54">// Disable Interrupts</font>
+ &nbsp;<font color="#000000">MCUSR</font> &nbsp;<font color="#434f54">&=</font> <font color="#000000">0xF7</font><font color="#000000">;</font> <font color="#434f54">// Clear the watchdog reset flag</font>
+ &nbsp;<font color="#000000">WDTCSR</font> <font color="#434f54">|=</font> <font color="#000000">0x18</font><font color="#000000">;</font> <font color="#434f54">// Enable changes to the watchdog</font>
+ &nbsp;<font color="#000000">WDTCSR</font> &nbsp;<font color="#434f54">=</font> <font color="#000000">0x28</font><font color="#000000">;</font> <font color="#434f54">// Config watchdog for 4s timeout and enable watchdog reset</font>
+ &nbsp;<font color="#000000">sei</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">;</font> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="#434f54">// Enable interrupts</font>
+<font color="#000000">}</font>
+
+</pre>
