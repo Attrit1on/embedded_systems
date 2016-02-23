@@ -62,6 +62,7 @@ void loop() {
     sampling_time_summation = 0;
     for (uint8_t i = 1; i < 31; i++) {
       while (millis()-last_sample_start_time < 500);
+      Serial.println("Starting an analogRead() conversion set: ");
       last_sample_start_time = millis();
       sample_start_time = micros();
       sample = analogRead(A0);
@@ -71,6 +72,7 @@ void loop() {
     }
     Serial.println("\navg conversion time = " + (String)(sampling_time_summation/30) + " usecs");
     trigger_sampling = 0;
+    Serial.println("Please enter a 'c' to begin sampling the analog port:\n");
   }
 }
 
