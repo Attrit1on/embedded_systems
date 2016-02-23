@@ -1,4 +1,4 @@
-/*  Lab 3: Introduction to Watchdog Timers
+/*  Lab 4: analogRead() Analysis
  *  
  *  File:       analogRead_analysis.ino
  *  Version:    1.00
@@ -60,9 +60,9 @@ void loop() {
   if (trigger_sampling) {
     uint16_t sample=0, duration=0;
     sampling_time_summation = 0;
+    Serial.println("Starting an analogRead() conversion set: ");
     for (uint8_t i = 1; i < 31; i++) {
       while (millis()-last_sample_start_time < 500);
-      Serial.println("Starting an analogRead() conversion set: ");
       last_sample_start_time = millis();
       sample_start_time = micros();
       sample = analogRead(A0);
