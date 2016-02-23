@@ -30,9 +30,6 @@
  *  
  */
 
-// Library for utilizing the AVR's integrated watchdog
-#include <avr/wdt.h> 
-
 void setup() {
   // Serial start and initial statements
   Serial.begin(115200);
