@@ -1,4 +1,4 @@
-/*  Lab 3: Introduction to Watchdog Timers
+/*  Lab 4: analogRead() Analysis
  *  
  *  File:       analogRead_analysis.ino
  *  Version:    1.00
