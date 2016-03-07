@@ -1,0 +1,233 @@
+/*  Lab 5: Introduction to Polling Applications and Direct Port Manipulation
+ *  
+ *  File:       analogRead_comparison.ino
+ *  Version:    1.00
+ *  Author:     Trey Harrison (CWID: 11368768)
+ *  Email:      ntharrison@crimson.ua.edu
+ *  Created:    07 March, 2016
+ *  Modified:   07 March, 2016
+ *  
+ *  This program compares the efficiency of the default analogRead() function
+ *  vs a direct port manipulation approach.  When the user enters "a\n" into the
+ *  serial terminal it will perform 30 samples of the onboard ADC using analogRead()
+ *  and reporting individual sample values and times along with an average of all 30 
+ *  sample times at the end.  The program performs this same process whenever the user
+ *  enters "b\n" except that now the samples are being performed via direct port manipulation.
+ *  There is a watchdog interrupt that triggers if the user fails to enter a line feed, thus
+ *  voiding any data received in such an invalid format.
+ *  
+ *  Copyright (C) 2016, Trey Harrison
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *  
+ *  Source: <https://github.com/Attrit1on/embedded_systems>
+ *  
+ */
+#include <avr/wdt.h>
+
+void setup() {
+    // Serial start and initial statements
+    Serial.begin(115200);
+    Serial.println("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
+    Serial.println("************************analogRead Comparison V1.00************************");             
+    Serial.println("This program compares the efficiency of the default analogRead()");
+    Serial.println("sampling method to a custom method using direct port manipulation\n");
+    Serial.println("Program Initialization:");
+    // Print instructions for user
+    printInstructions();
+}
+
+
+bool serialTimeout = 0, invalidInput = 0, inputComplete = 0, inputCountError = 0;
+char inputChar = 0;
+void loop() {
+    // Check for user error
+    userErrorCheck();
+    // Check for valid user input and sample accordingly
+    if (inputComplete) {
+        if (inputChar == 'a' || inputChar == 'A') AnalogSampling(1);
+        else AnalogSampling(0);
+        // Clear the input
+        inputChar = 0;
+        inputComplete = 0;
+    }
+}
+
+void serialEvent() {
+  while (Serial.available() > 0) {
+    // Enable watchdog if it is not already
+    if (WDTCSR == 0x00) {
+      enableWatchdogInterrupt();
+    }
+    // Pet the dog
+    wdt_reset();
+    char input = Serial.read();
+    if ((input == 'a' || input == 'A' || input == 'b' || input == 'B') && inputChar == 0) {
+      inputChar = input;
+    }
+    else if (input == '\n') {
+      disableWatchdogInterrupt();
+      inputComplete = 1;
+      if (inputChar == 0) invalidInput = 1;
+    }
+    else {
+      if (invalidInput == 1 || inputChar != 0) inputCountError = 1;
+      invalidInput = 1;
+    }
+  }
+}
+
+/*  printInstructions() 
+ *  Prints the program instructions when called
+ *  
+ */
+void printInstructions() {
+    Serial.println("---------------------------------------------------------------------------");
+    Serial.println("Please enter which sampling method you would like followed by a line feed:");
+    Serial.println("***Enter 'a' to begin a sample set using analogRead()");
+    Serial.println("***Enter 'b' to begin a sample set using direct port manipulation\n\n");
+}
+
+/*  userErrorCheck() 
+ *  Checks for and handles any errors by the user
+ *  
+ */
+void userErrorCheck() {
+    if (serialTimeout | (invalidInput&inputComplete)) {
+        Serial.println("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
+        if (serialTimeout) {
+            Serial.println("Error: You must end a transmission with a line feed!");
+        }
+        else if (inputCountError) {
+            Serial.println("Error: Too many inputs entered at once, please obey the instruction prompt!");
+        }
+        else {
+            Serial.println("Error: Invalid input, please obey the instruction prompt!");
+        }
+        // Reprint instructions for user
+        printInstructions();
+        // Clear error bits and input variable
+        serialTimeout = invalidInput = inputComplete = inputCountError = 0;
+        inputChar = 0;
+    }
+}
+
+/*  AnalogSampling() 
+ *  Reports the individual and average duration of 30 ADC samples 
+ *  using the selected sampling method.
+ *  default_sampling = true  => analogRead()
+ *  default_sampling = false => customAnalogRead()
+ */
+void AnalogSampling(boolean default_sampling) {
+  if (default_sampling) {
+    Serial.println("Starting a sample set using analogRead():");
+  }
+  else {
+    Serial.println("Starting a sample set using direct port manipulation:");
+  }
+  unsigned long sample_time_sum = 0;
+  for (int i = 1; i < 31; i++) {
+    // Set time for next sample
+    unsigned long next_sample_time = millis()+500;
+    uint16_t sample_val = 0;
+    // Record time that this sample began
+    unsigned long sample_time = micros();
+    // Record value of sample
+    if (default_sampling) sample_val = analogRead(A0);
+    else sample_val = customAnalogRead(0);
+    // Record time it took to take sample
+    sample_time = micros() - sample_time;
+    // Sum all sample times for computing the average
+    sample_time_sum += sample_time;
+    // Print the sample information in appropriate format
+    printSample(i, sample_val, sample_time);
+    // Wait till time for next sample
+    while (millis() < next_sample_time);
+  }
+  // Print the average conversion time
+  Serial.println("Average conversion time: " + (String)(sample_time_sum/30) + "\n\n");
+}
+
+/*  customAnalogRead() 
+ *  Reports the individual and average duration of 30 ADC samples 
+ *  using port manipulation along with the digital ADC value
+ *  
+ */
+uint16_t customAnalogRead(uint8_t channel) {
+    // Configure the ADC for single ended input on selected channel
+    ADMUX |= (channel|0b01000000);
+    // Start the reading
+    ADCSRA |= 0x40;
+   // Wait for reading to finish
+    while (ADCSRA & 0x40);
+    // Return the ADC digital value
+    return ADCL|(ADCH<<8);
+}
+
+
+/*  printSample() 
+ *  Prints the information of each ADC sample when called with appropriate formatting.
+ *  
+ */
+void printSample(uint8_t count, uint16_t sample_val, uint16_t time_span) {
+    // Print the sample count
+    if (count < 10) {
+        Serial.print("#0" + (String)count + ":   digital value = 0x");
+    } 
+    else {
+        Serial.print("#" + (String)count + ":   digital value = 0x");
+    }
+
+    // Print the digital value of the sample in hex
+    if (sample_val < 0x10) {
+        Serial.print("00");
+    }
+    else if (sample_val < 0x100) {
+        Serial.print("0");
+    }
+    Serial.print(sample_val, HEX); 
+
+    // Print the time it took to do the conversion
+    Serial.println("    Time = " + (String)time_span + " usecs");
+}
+
+/*  disableWatchdogInterrupt() 
+ *  Disables the ATmega2560 watchdog and clears relevant flags
+ *  
+ */
+void disableWatchdogInterrupt() {
+    cli();          // Disable interrupts
+    WDTCSR |= 0x98; // Enable changes to WDTCSR, clear interrupt flag
+    WDTCSR  = 0x00; // Clear the watchdog timer control register(stop all activity)
+    sei();          // Enable interrupts
+}
+
+/*  enableWatchdog()
+ *  Enables the ATmega2560 watchdog in interrupt mode with a xxmicrosecond timeout
+ *  
+ */
+void enableWatchdogInterrupt() {
+    cli();          // Disable Interrupts
+    MCUSR  &= 0xF7; // Clear the watchdog reset flag
+    WDTCSR |= 0x18; // Enable changes to the watchdog
+    WDTCSR  = 0xC1; // Config 32ms timeout, enable watchdog interrupt, and clear interrupt flag
+    sei();          // Enable interrupts
+}
+
+// Watchdog timeout interrupt
+ISR(WDT_vect) {
+    // Disable watchdog and clear interrupt flag
+    disableWatchdogInterrupt();
+    // Set serial timeout error flag
+    serialTimeout = 1;
+}
