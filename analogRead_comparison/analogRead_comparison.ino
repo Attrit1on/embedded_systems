@@ -1,11 +1,11 @@
 /*  Lab 5: Introduction to Polling Applications and Direct Port Manipulation
  *  
  *  File:       analogRead_comparison.ino
- *  Version:    1.00
+ *  Version:    1.01
  *  Author:     Trey Harrison (CWID: 11368768)
  *  Email:      ntharrison@crimson.ua.edu
  *  Created:    07 March, 2016
- *  Modified:   07 March, 2016
+ *  Modified:   08 March, 2016
  *  
  *  This program compares the efficiency of the default analogRead() function
  *  vs a direct port manipulation approach.  When the user enters "a\n" into the
@@ -135,18 +135,23 @@ void AnalogSampling(boolean default_sampling) {
   else {
     Serial.println("Starting a sample set using direct port manipulation:");
   }
-  unsigned long sample_time_sum = 0;
+  uint32_t sample_time_sum = 0;
   for (int i = 1; i < 31; i++) {
     // Set time for next sample
-    unsigned long next_sample_time = millis()+500;
+    uint32_t next_sample_time = millis()+500;
     uint16_t sample_val = 0;
-    // Record time that this sample began
-    unsigned long sample_time = micros();
+    // Initialize variable for individual sample time
+    uint32_t sample_time;
     // Record value of sample
-    if (default_sampling) sample_val = analogRead(A0);
-    else sample_val = customAnalogRead(0);
-    // Record time it took to take sample
-    sample_time = micros() - sample_time;
+    if (default_sampling) {
+      // Record time that this sample began
+      sample_time = micros();
+      // Start the sample
+      sample_val = analogRead(A0);
+      // Record time it took to take sample
+      sample_time = micros() - sample_time;
+    }
+    else sample_val = customAnalogRead(0, &sample_time);
     // Sum all sample times for computing the average
     sample_time_sum += sample_time;
     // Print the sample information in appropriate format
@@ -163,13 +168,17 @@ void AnalogSampling(boolean default_sampling) {
  *  using port manipulation along with the digital ADC value
  *  
  */
-uint16_t customAnalogRead(uint8_t channel) {
+uint16_t customAnalogRead(uint8_t channel, uint32_t* sample_time) {
+    // Record time that this sample began
+    *sample_time = micros();
     // Configure the ADC for single ended input on selected channel
     ADMUX |= (channel|0b01000000);
     // Start the reading
     ADCSRA |= 0x40;
-   // Wait for reading to finish
+    // Wait for reading to finish
     while (ADCSRA & 0x40);
+    // Record time it took to take sample
+    *sample_time = micros() - *sample_time;
     // Return the ADC digital value
     return ADCL|(ADCH<<8);
 }
